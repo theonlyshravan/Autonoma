@@ -15,10 +15,10 @@ app.add_middleware(
 )
 
 # Routers
-app.include_router(auth.router)
-app.include_router(telemetry.router)
-app.include_router(vehicles.router)
-app.include_router(insights.router)
+app.include_router(auth.router, prefix="/auth", tags=["auth"])
+app.include_router(vehicles.router, prefix="/api/vehicles", tags=["vehicles"])
+app.include_router(insights.router, prefix="/api/insights", tags=["insights"])
+app.include_router(chat.router, prefix="/api", tags=["chat"])
 
 @app.on_event("startup")
 async def startup():

@@ -5,6 +5,7 @@ from .state import VehicleState
 from .data_agent import DataAnalysisAgent
 from .workers import DiagnosisAgent, CustomerEngagementAgent, SchedulingAgent, RCAAgent
 from .ueba import UEBAAgent
+from .feedback import FeedbackAgent
 
 # Instantiate Agents
 data_agent = DataAnalysisAgent()
@@ -13,6 +14,7 @@ customer_agent = CustomerEngagementAgent()
 scheduling_agent = SchedulingAgent()
 rca_agent = RCAAgent()
 ueba_agent = UEBAAgent()
+feedback_agent = FeedbackAgent()
 
 # Node Functions
 async def data_analysis_node(state: VehicleState):
@@ -28,10 +30,15 @@ async def diagnosis_node(state: VehicleState):
     return result
 
 async def customer_node(state: VehicleState):
-    print("--- Customer Engagement ---")
+    print("--- Customer Engagement (Gemini) ---")
     # Ensure severity is present
     severity = state.get("severity", "Medium")
-    msg = customer_agent.generate_message(state["diagnosis"], severity)
+    # Pass history for context
+    msg = await customer_agent.generate_message(
+        diagnosis=state["diagnosis"], 
+        severity=severity, 
+        conversation_history=state.get("messages", [])
+    )
     new_messages = state.get("messages", []) + [{"sender": "ai", "content": msg}]
     return {"messages": new_messages}
 

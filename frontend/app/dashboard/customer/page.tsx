@@ -1,127 +1,146 @@
 "use client";
 
-import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
+import { useState, useEffect, useRef } from "react";
+import { Send, User, Bot } from "lucide-react";
+import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Activity, Battery, Zap, AlertTriangle, MessageSquare } from "lucide-react";
-import { useTelemetry } from "@/hooks/useTelemetry";
-import { TelemetryChart } from "@/components/TelemetryChart";
+import { Input } from "@/components/ui/input";
+import { useAuth } from "@/app/contexts/AuthContext";
 
-export default function CustomerDashboard() {
-    const { telemetry, telemetryHistory, alert, messages, isConnected } = useTelemetry();
+type Message = {
+    id: string;
+    sender: "user" | "bot";
+    text: string;
+    timestamp: Date;
+};
+
+export default function CustomerChatPage() {
+    const { user } = useAuth();
+    const [messages, setMessages] = useState<Message[]>([
+        {
+            id: "welcome",
+            sender: "bot",
+            text: `Hello ${user?.name || 'Customer'}. I am monitoring your vehicle (VIN: EV-8823-X). Everything looks good right now, but I'm here if you need anything.`,
+            timestamp: new Date()
+        }
+    ]);
+    const [inputText, setInputText] = useState("");
+    const [isTyping, setIsTyping] = useState(false);
+    const scrollRef = useRef<HTMLDivElement>(null);
+
+    // Auto-scroll to bottom
+    useEffect(() => {
+        if (scrollRef.current) {
+            scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
+        }
+    }, [messages]);
+
+    // Simulate incoming alert from backend (Mock)
+    useEffect(() => {
+        const timer = setTimeout(() => {
+            addMessage("bot", "⚠️ ALERT: Sensors indicate Battery Cell #4 temperature is rising (62°C). This exceeds the safety threshold. Coolant pump efficiency is dropping.");
+            setTimeout(() => {
+                addMessage("bot", "Based on my analysis, you should book a service appointment immediately to prevent thermal runaway. Shall I look for a slot?");
+            }, 1000);
+        }, 5000); // Trigger after 5s
+        return () => clearTimeout(timer);
+    }, []);
+
+    const addMessage = (sender: "user" | "bot", text: string) => {
+        setMessages(prev => [...prev, {
+            id: Date.now().toString() + Math.random(),
+            sender,
+            text,
+            timestamp: new Date()
+        }]);
+    };
+
+    const handleSend = async () => {
+        if (!inputText.trim()) return;
+
+        const userMsg = inputText;
+        addMessage("user", userMsg);
+        setInputText("");
+        setIsTyping(true);
+
+        try {
+            // Call Backend API
+            const res = await fetch("http://localhost:8000/api/chat", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                    message: userMsg,
+                    history: messages.map(m => ({ sender: m.sender, content: m.text }))
+                })
+            });
+            const data = await res.json();
+
+            setIsTyping(false);
+            addMessage("bot", data.response);
+        } catch (error) {
+            console.error(error);
+            setIsTyping(false);
+            // Fallback for demo if backend offline
+            addMessage("bot", "I'm having trouble connecting to the manufacturing cloud. Please try again.");
+        }
+    };
 
     return (
-        <div className="space-y-6">
-            {/* Header Section */}
-            <div className="flex justify-between items-center">
-                <div>
-                    <h2 className="text-3xl font-display font-bold text-foreground">VEHICLE_STATUS</h2>
-                    <p className="text-muted-foreground font-mono text-xs">ID: EV-8823-X // {isConnected ? "CONNECTED" : "DISCONNECTED"}</p>
-                </div>
-                <div className="flex gap-2">
-                    <Badge variant={isConnected ? "neon" : "outline"}>{isConnected ? "SYSTEM ONLINE" : "OFFLINE"}</Badge>
-                    <Badge variant="outline" className="border-accent text-accent">HEALTH: {alert ? "ATTENTION" : "98%"}</Badge>
-                </div>
-            </div>
+        <div className="h-[calc(100vh-6rem)] flex flex-col gap-4 p-4 md:p-8 max-w-4xl mx-auto w-full">
+            <header className="mb-2">
+                <h1 className="text-3xl font-display font-bold text-foreground">
+                    AUTONOMA <span className="text-primary">ASSISTANT</span>
+                </h1>
+                <p className="text-muted-foreground">AI-Powered Vehicle Support • VIN: EV-8823-X</p>
+            </header>
 
-            {/* Main Grid */}
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-                {/* Left Column: Visuals & Key Metrics */}
-                <div className="lg:col-span-2 space-y-6">
-                    {/* Hero Vehicle Representation (Placeholder) */}
-                    <Card className="h-64 flex items-center justify-center relative overflow-hidden group">
-                        <div className="absolute inset-0 bg-primary/5 group-hover:bg-primary/10 transition-colors" />
-                        <div className="text-center z-10">
-                            <div className="w-32 h-32 rounded-full border-2 border-primary/30 mx-auto mb-4 flex items-center justify-center relative">
-                                <div className={`absolute inset-0 rounded-full border border-primary/50 animate-ping opacity-20 ${alert ? "animate-ping duration-500" : ""}`} />
-                                <Zap className={`w-12 h-12 ${alert ? "text-red-500" : "text-primary"}`} />
+            <Card className="flex-1 overflow-hidden flex flex-col bg-card/80 backdrop-blur-md border border-white/5 shadow-2xl relative">
+                {/* Chat Area */}
+                <div
+                    ref={scrollRef}
+                    className="flex-1 overflow-y-auto p-4 space-y-4 scroll-smooth"
+                >
+                    {messages.map((msg) => (
+                        <div
+                            key={msg.id}
+                            className={`flex ${msg.sender === "user" ? "justify-end" : "justify-start"}`}
+                        >
+                            <div className={`
+                                max-w-[80%] p-4 rounded-2xl text-sm leading-relaxed
+                                ${msg.sender === "user"
+                                    ? "bg-primary text-primary-foreground rounded-br-none"
+                                    : "bg-muted/30 text-foreground border border-white/5 rounded-bl-none"}
+                            `}>
+                                {msg.text}
                             </div>
-                            <p className="font-display text-xl tracking-widest text-primary">MODEL_S_PLRAID</p>
-                            {alert && <p className="text-red-500 font-bold animate-pulse">{alert.reason}</p>}
                         </div>
-                        {/* Decorative Grid Lines */}
-                        <div className="absolute bottom-0 left-0 w-full h-[1px] bg-gradient-to-r from-transparent via-primary/50 to-transparent" />
-                    </Card>
+                    ))}
 
-                    {/* Charts Grid */}
-                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-2 gap-4">
-                        <TelemetryChart data={telemetryHistory} dataKey="velocity" title="SPEED" unit="km/h" color="#0ea5e9" />
-                        <TelemetryChart data={telemetryHistory} dataKey="battery_temperature" title="BATTERY TEMP" unit="°C" color="#ef4444" />
-                        <TelemetryChart data={telemetryHistory} dataKey="motor_rpm" title="MOTOR RPM" unit="RPM" color="#22c55e" />
-                        <TelemetryChart data={telemetryHistory} dataKey="vibration_level" title="VIBRATION" unit="G" color="#f97316" />
-                    </div>
-
-                    {/* Chart Placeholder / Data Stream View */}
-                    <Card className="h-64 p-6">
-                        <CardHeader className="px-0 pt-0">
-                            <CardTitle>LIVE_TELEMETRY_LOG</CardTitle>
-                        </CardHeader>
-                        <div className="h-full w-full bg-black/40 rounded border border-white/5 p-4 font-mono text-xs overflow-y-auto">
-                            {telemetry ? (
-                                <div className="space-y-1">
-                                    <p className="text-primary"> RX &gt; VELOCITY: {telemetry.velocity}</p>
-                                    <p className="text-primary"> RX &gt; BATT_TEMP: {telemetry.battery_temperature}</p>
-                                    <p className="text-primary"> RX &gt; VIBRATION: {telemetry.vibration_level}</p>
-                                    <p className="text-muted-foreground"> ...streaming...</p>
-                                </div>
-                            ) : (
-                                <p className="text-muted-foreground">AWAITING_DATA_STREAM...</p>
-                            )}
+                    {isTyping && (
+                        <div className="flex justify-start">
+                            <div className="bg-muted/30 p-4 rounded-2xl rounded-bl-none flex gap-2 items-center">
+                                <span className="w-2 h-2 bg-primary animate-bounce" />
+                                <span className="w-2 h-2 bg-primary animate-bounce [animation-delay:-0.15s]" />
+                                <span className="w-2 h-2 bg-primary animate-bounce [animation-delay:-0.3s]" />
+                            </div>
                         </div>
-                    </Card>
+                    )}
                 </div>
 
-                {/* Right Column: Intelligent Agent Chat */}
-                <div className="lg:col-span-1">
-                    <Card className="h-full min-h-[500px] flex flex-col">
-                        <CardHeader>
-                            <CardTitle className="flex items-center gap-2">
-                                <MessageSquare className="w-4 h-4 text-primary" />
-                                AUTONOMA_AGENT
-                            </CardTitle>
-                        </CardHeader>
-                        <CardContent className="flex-1 flex flex-col">
-                            <div className="flex-1 space-y-4 mb-4 overflow-y-auto max-h-[400px]">
-                                {/* System Init */}
-                                <div className="flex justify-start">
-                                    <div className="bg-primary/10 border border-primary/20 text-primary-foreground p-3 rounded-br-lg rounded-tr-lg rounded-bl-lg max-w-[85%] text-sm">
-                                        <p className="font-mono text-[10px] text-primary mb-1">SYSTEM</p>
-                                        Vehicle diagnostics initialized. All systems nominal.
-                                    </div>
-                                </div>
-                                {/* Live Messages */}
-                                {messages.map((msg, idx) => (
-                                    <div key={idx} className="flex justify-start">
-                                        <div className="bg-primary/10 border border-primary/20 text-primary-foreground p-3 rounded-br-lg rounded-tr-lg rounded-bl-lg max-w-[85%] text-sm">
-                                            <p className="font-mono text-[10px] text-primary mb-1">AI</p>
-                                            {msg.content}
-                                        </div>
-                                    </div>
-                                ))}
-                            </div>
-
-                            <div className="mt-auto pt-4 border-t border-white/10">
-                                <input
-                                    className="w-full bg-black/50 border border-white/10 rounded p-2 text-sm text-foreground focus:border-primary/50 focus:outline-none font-mono"
-                                    placeholder="Type command..."
-                                />
-                            </div>
-                        </CardContent>
-                    </Card>
+                {/* Input Area */}
+                <div className="p-4 bg-background/50 border-t border-white/5 flex gap-3">
+                    <Input
+                        value={inputText}
+                        onChange={(e) => setInputText(e.target.value)}
+                        onKeyDown={(e) => e.key === "Enter" && handleSend()}
+                        placeholder="Type your message..."
+                        className="flex-1 bg-black/20 border-white/10 focus-visible:ring-primary"
+                    />
+                    <Button onClick={handleSend} size="icon" className="bg-primary hover:bg-primary/90 text-white">
+                        <Send className="w-5 h-5" />
+                    </Button>
                 </div>
-            </div>
+            </Card>
         </div>
     );
-}
-
-function MetricCard({ label, value, icon: Icon, color = "text-primary" }: any) {
-    return (
-        <Card className="p-4 flex flex-col items-center justify-center text-center space-y-2 hover:bg-white/5 transition-colors">
-            <Icon className={`w-6 h-6 ${color} opacity-80`} />
-            <div>
-                <p className="text-2xl font-display font-bold">{value}</p>
-                <p className="text-[10px] uppercase tracking-widest text-muted-foreground">{label}</p>
-            </div>
-        </Card>
-    )
 }

@@ -22,32 +22,20 @@ from urllib.parse import urlparse, urlunparse
 if DATABASE_URL.startswith("postgresql://"):
     DATABASE_URL = DATABASE_URL.replace("postgresql://", "postgresql+asyncpg://")
 
-# FIX: Force IPv4 resolution to avoid "Network is unreachable" on Render (IPv6 issues)
+# Handle Render's IPv6 routing limitations by enforcing IPv4 resolution
 try:
     parsed = urlparse(DATABASE_URL)
     hostname = parsed.hostname
     if hostname:
         ipv4 = socket.gethostbyname(hostname)
-        print(f"Resolved {hostname} to IPv4: {ipv4}")
-        # Reconstruct URL with IPv4 address
-        # We must keep the original hostname for SSL verification if possible, but asyncpg
-        # makes that hard with a replaced host.
-        # Strategy: Replace host with IP, and rely on default SSL context which might warn but proceed,
-        # or it might fail SSL.
-        # Better Strategy: If we change host to IP, we risk SSL errors.
-        # But "Network Unreachable" is a blocker.
-        # Let's simple try to use the resolved IP.
+        print(f"Resolved database host {hostname} to IPv4: {ipv4}")
         
-        # Note: If the password contains special chars, simple string replace is dangerous.
-        # But urlparse/unparse handles components safely? No, urlparse.netloc includes user:pass.
-        
-        # Safest way: replace the hostname in the netloc
+        # safely replace hostname with IP in connection string
         new_netloc = parsed.netloc.replace(hostname, ipv4)
         parsed = parsed._replace(netloc=new_netloc)
         DATABASE_URL = urlunparse(parsed)
-        print(f"Updated DATABASE_URL to use IPv4: {DATABASE_URL.split('@')[-1]}")
 except Exception as e:
-    print(f"Failed to force IPv4 resolution: {e}")
+    print(f"IPv4 resolution failed, proceeding with original URL: {e}")
 
 engine = create_async_engine(DATABASE_URL, echo=True)
 

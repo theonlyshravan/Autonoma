@@ -4,7 +4,7 @@ import { useAuth } from "@/app/contexts/AuthContext";
 import { useState, useEffect } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { User, Phone, Mail, Car, Calendar, ShieldCheck } from "lucide-react";
-import { Separator } from "@/components/ui/separator";
+import { API_URL } from "@/lib/config";
 
 export default function CustomerSettingsPage() {
     const { user } = useAuth();
@@ -17,7 +17,7 @@ export default function CustomerSettingsPage() {
                 const token = localStorage.getItem("token");
                 if (!token) return;
 
-                const res = await fetch("http://localhost:8000/api/vehicles/my-status", {
+                const res = await fetch(`${API_URL}/api/vehicles/my-status`, {
                     headers: { "Authorization": `Bearer ${token}` }
                 });
                 const data = await res.json();
